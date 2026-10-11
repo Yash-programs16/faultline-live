@@ -1,0 +1,70 @@
+# Faultline Live — Render blueprint (backend API)
+#
+# Deploy: push the `faultline-live-demo/` folder to GitHub, then in Render
+# Dashboard → New → Blueprint → select the repo. Render reads this file and
+# creates the web service. Secrets marked `sync: false` must be pasted in
+# the Render dashboard (never commit real secrets to git).
+#
+# Required dashboard values:
+#   DATABASE_URL  – Neon Postgres connection string (sslmode=require)
+#   JWT_SECRET    – auto-generated below (or paste your own 32+ char string)
+#   GEMINI_API_KEY – your Google Gemini API key
+#   FRONTEND_URL  – your Vercel app URL, e.g. https://faultline-live.vercel.app
+#                   (also repeat it in CORS_ALLOWED_ORIGINS)
+
+services:
+  - type: web
+    name: faultline-live-api
+    runtime: go
+    rootDir: backend
+    buildCommand: go build -o server .
+    startCommand: ./server
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: SERVER_HOST
+        value: 0.0.0.0
+      # Render injects PORT automatically; the server prefers it over SERVER_PORT.
+      - key: FAULTLINE_DEMO_MODE
+        value: "true"
+      - key: ALLOW_PUBLIC_DEMO
+        value: "true"
+      - key: OPS_AUTH_REQUIRED
+        value: "false"
+      - key: FAULTS_ENABLED
+        value: "true"
+      - key: FAULTS_MAX_DURATION
+        value: 10m
+      - key: FAULTS_MAX_LATENCY_MS
+        value: "10000"
+      - key: FAULTS_MAX_ERROR_RATE
+        value: "0.5"
+      - key: TELEMETRY_WINDOW
+        value: 1m
+      - key: INCIDENT_COOLDOWN
+        value: 30s
+      - key: SAMPLE_RETENTION
+        value: 24h
+      - key: AUTO_MIGRATE
+        value: "true"
+      # No Ollama daemon exists on Render; Gemini is the cloud investigator.
+      - key: OLLAMA_ENABLED
+        value: "false"
+      - key: GEMINI_ENABLED
+        value: "true"
+      - key: GEMINI_MODEL
+        value: gemini-2.0-flash
+      - key: GEMINI_TIMEOUT
+        value: 45s
+      - key: GEMINI_MAX_RETRIES
+        value: "1"
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateRandomValue: true
+      - key: FRONTEND_URL
+        sync: false
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false

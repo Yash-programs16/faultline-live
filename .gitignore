@@ -1,0 +1,62 @@
+# Faultline Live - Root .gitignore
+
+# Dependencies
+node_modules/
+frontend/node_modules/
+
+# Build outputs
+frontend/dist/
+backend/*.exe
+backend/dist/
+backend/build/
+
+# Environment files
+.env
+.env.*
+!.env.example
+backend/.env
+backend/.env.*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Test coverage
+coverage/
+*.out
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Go
+vendor/
+go.work
+# Secrets
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# Build artifacts
+node_modules/
+dist/
+build/
+coverage/
+*.log
+
+# Windows reserved-name artifact
+nul
+NUL
