@@ -2,7 +2,9 @@ package store
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log"
@@ -67,6 +69,18 @@ func (s *Store) Migrate(ctx context.Context) error {
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_products_name ON products(name)`,
+		`CREATE TABLE IF NOT EXISTS orders (
+			id TEXT PRIMARY KEY,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		`CREATE TABLE IF NOT EXISTS order_items (
+			order_id TEXT NOT NULL REFERENCES orders(id),
+			product_id BIGINT NOT NULL REFERENCES products(id),
+			quantity BIGINT NOT NULL CHECK (quantity > 0),
+			unit_price_cents BIGINT NOT NULL CHECK (unit_price_cents >= 0),
+			PRIMARY KEY (order_id, product_id)
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items(order_id)`,
 		`CREATE TABLE IF NOT EXISTS telemetry_windows (
 			id BIGSERIAL PRIMARY KEY,
 			window_start TIMESTAMPTZ NOT NULL,
@@ -255,11 +269,11 @@ func (s *Store) ValidateCart(ctx context.Context, items []CartItem) (*CartValida
 
 		subtotal := product.PriceCents * item.Quantity
 		result.Items = append(result.Items, CartItemDetail{
-			ProductID:   product.ID,
-			Name:        product.Name,
-			PriceCents:  product.PriceCents,
-			Quantity:    item.Quantity,
-			Stock:       product.Stock,
+			ProductID:     product.ID,
+			Name:          product.Name,
+			PriceCents:    product.PriceCents,
+			Quantity:      item.Quantity,
+			Stock:         product.Stock,
 			SubtotalCents: subtotal,
 		})
 		result.TotalCents += subtotal
@@ -281,6 +295,19 @@ func (s *Store) Checkout(ctx context.Context, items []CartItem) (string, error) 
 			return "", fmt.Errorf("invalid quantity for product %d", item.ProductID)
 		}
 
+		var product Product
+		err := tx.QueryRow(ctx, `
+			SELECT id, name, description, price_cents, stock, created_at, updated_at
+			FROM products
+			WHERE id = $1
+		`, item.ProductID).Scan(&product.ID, &product.Name, &product.Description, &product.PriceCents, &product.Stock, &product.CreatedAt, &product.UpdatedAt)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return "", fmt.Errorf("product %d: not found", item.ProductID)
+			}
+			return "", err
+		}
+
 		result, err := tx.Exec(ctx, `
 			UPDATE products
 			SET stock = stock - $2, updated_at = NOW()
@@ -294,9 +321,38 @@ func (s *Store) Checkout(ctx context.Context, items []CartItem) (string, error) 
 		}
 	}
 
-	orderID := fmt.Sprintf("ORD-%d", time.Now().UnixMilli())
-	if _, err := tx.Exec(ctx, `INSERT INTO orders (id, created_at) VALUES ($1, NOW())`, orderID); err != nil {
-		return "", err
+	// Generate a cryptographically random order ID.
+	idBytes := make([]byte, 16)
+	if _, err := rand.Read(idBytes); err != nil {
+		return "", fmt.Errorf("generate order ID: %w", err)
+	}
+
+	orderID := "ORD-" + hex.EncodeToString(idBytes)
+
+	if _, err := tx.Exec(
+		ctx,
+		`INSERT INTO orders (id, created_at) VALUES ($1, NOW())`,
+		orderID,
+	); err != nil {
+		return "", fmt.Errorf("create order: %w", err)
+	}
+
+	for _, item := range items {
+		var product Product
+		err := tx.QueryRow(ctx, `
+			SELECT id, name, description, price_cents, stock, created_at, updated_at
+			FROM products
+			WHERE id = $1
+		`, item.ProductID).Scan(&product.ID, &product.Name, &product.Description, &product.PriceCents, &product.Stock, &product.CreatedAt, &product.UpdatedAt)
+		if err != nil {
+			return "", err
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO order_items (order_id, product_id, quantity, unit_price_cents)
+			VALUES ($1, $2, $3, $4)
+		`, orderID, item.ProductID, item.Quantity, product.PriceCents); err != nil {
+			return "", err
+		}
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -314,30 +370,30 @@ type CartItem struct {
 }
 
 type CartItemDetail struct {
-	ProductID      int64 `json:"product_id"`
-	Name           string `json:"name"`
-	PriceCents     int64 `json:"price_cents"`
-	Quantity       int64 `json:"quantity"`
-	Stock          int64 `json:"stock"`
-	SubtotalCents  int64 `json:"subtotal_cents"`
+	ProductID     int64  `json:"product_id"`
+	Name          string `json:"name"`
+	PriceCents    int64  `json:"price_cents"`
+	Quantity      int64  `json:"quantity"`
+	Stock         int64  `json:"stock"`
+	SubtotalCents int64  `json:"subtotal_cents"`
 }
 
 type CartValidationResult struct {
-	Valid       bool             `json:"valid"`
-	Items       []CartItemDetail `json:"items"`
-	TotalCents  int64            `json:"total_cents"`
-	Errors      []string         `json:"errors"`
+	Valid      bool             `json:"valid"`
+	Items      []CartItemDetail `json:"items"`
+	TotalCents int64            `json:"total_cents"`
+	Errors     []string         `json:"errors"`
 }
 
 type TelemetryWindow struct {
-	WindowStart      time.Time `json:"window_start"`
-	Service          string    `json:"service"`
-	RequestCount     int64     `json:"request_count"`
-	ErrorCount       int64     `json:"error_count"`
-	ErrorRate        float64   `json:"error_rate"`
-	MeanLatencyMs    float64   `json:"mean_latency_ms"`
-	P95LatencyMs     float64   `json:"p95_latency_ms"`
-	RequestsPerSecond float64  `json:"requests_per_second"`
+	WindowStart       time.Time `json:"window_start"`
+	Service           string    `json:"service"`
+	RequestCount      int64     `json:"request_count"`
+	ErrorCount        int64     `json:"error_count"`
+	ErrorRate         float64   `json:"error_rate"`
+	MeanLatencyMs     float64   `json:"mean_latency_ms"`
+	P95LatencyMs      float64   `json:"p95_latency_ms"`
+	RequestsPerSecond float64   `json:"requests_per_second"`
 }
 
 func (s *Store) PersistTelemetryWindow(ctx context.Context, window TelemetryWindow) error {
@@ -380,12 +436,12 @@ func (s *Store) GetRecentTelemetryWindows(ctx context.Context, service string, l
 }
 
 type FaultEvent struct {
-	ID            int64           `json:"id"`
-	Scenario      string          `json:"scenario"`
-	ActivatedAt   time.Time       `json:"activated_at"`
-	DeactivatedAt *time.Time      `json:"deactivated_at,omitempty"`
-	Params        map[string]any  `json:"params"`
-	Active        bool            `json:"active"`
+	ID            int64          `json:"id"`
+	Scenario      string         `json:"scenario"`
+	ActivatedAt   time.Time      `json:"activated_at"`
+	DeactivatedAt *time.Time     `json:"deactivated_at,omitempty"`
+	Params        map[string]any `json:"params"`
+	Active        bool           `json:"active"`
 }
 
 func (s *Store) RecordFaultActivation(ctx context.Context, scenario string, params map[string]any) (int64, error) {

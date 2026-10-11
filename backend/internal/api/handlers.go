@@ -1,8 +1,8 @@
 package api
 
 import (
-	"context"
 	"encoding/json"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -11,6 +11,7 @@ import (
 
 	"faultline-live/backend/internal/config"
 	"faultline-live/backend/internal/faults"
+	"faultline-live/backend/internal/payment"
 	"faultline-live/backend/internal/store"
 	"faultline-live/backend/internal/telemetry"
 )
@@ -19,15 +20,17 @@ type Handler struct {
 	store       *store.Store
 	telemetry   *telemetry.Collector
 	faultCtrl   *faults.FaultController
+	paymentSim  *payment.Simulator
 	config      *config.Config
 }
 
-func NewHandler(store *store.Store, telemetry *telemetry.Collector, faultCtrl *faults.FaultController, config *config.Config) *Handler {
+func NewHandler(store *store.Store, telemetry *telemetry.Collector, faultCtrl *faults.FaultController, paymentSim *payment.Simulator, config *config.Config) *Handler {
 	return &Handler{
-		store:     store,
-		telemetry: telemetry,
-		faultCtrl: faultCtrl,
-		config:    config,
+		store:      store,
+		telemetry:  telemetry,
+		faultCtrl:  faultCtrl,
+		paymentSim: paymentSim,
+		config:     config,
 	}
 }
 
@@ -145,41 +148,77 @@ func (h *Handler) Checkout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if h.faultCtrl != nil {
-		if err := h.faultCtrl.ApplyLatency(r.Context()); err != nil {
-			if err == context.DeadlineExceeded || err == context.Canceled {
-				writeJSON(w, http.StatusGatewayTimeout, map[string]any{
-					"success": false,
-					"message": "payment processing timeout",
-				})
-				return
-			}
-		}
+	start := time.Now()
 
-		if h.faultCtrl.ShouldFail() {
-			writeJSON(w, http.StatusBadGateway, map[string]any{
-				"success": false,
-				"message": "payment processing failed (simulated)",
-			})
-			return
+	var paymentResult payment.PaymentResult
+	if h.paymentSim != nil {
+		paymentResult = h.paymentSim.ProcessPayment(r.Context())
+	} else {
+		paymentResult = payment.PaymentResult{
+			Success:          true,
+			ProcessingTimeMs: time.Since(start).Milliseconds(),
 		}
+	}
+
+	processingTimeMs := time.Since(start).Milliseconds()
+	if !paymentResult.Success {
+		var status int
+		if paymentResult.ErrorMessage == "payment processing timeout" {
+			status = http.StatusGatewayTimeout
+		} else {
+			status = http.StatusBadGateway
+		}
+		writeJSON(w, status, map[string]any{
+			"success":            false,
+			"message":            paymentResult.ErrorMessage,
+			"processing_time_ms": processingTimeMs,
+		})
+		return
 	}
 
 	orderID, err := h.store.Checkout(r.Context(), req.Items)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]any{
-			"success": false,
-			"message": err.Error(),
+		errMsg := err.Error()
+		var status int
+		switch {
+		case contains(errMsg, "not found"):
+			status = http.StatusNotFound
+		case contains(errMsg, "insufficient stock"):
+			status = http.StatusConflict
+		case contains(errMsg, "invalid quantity"):
+			status = http.StatusBadRequest
+		default:
+			log.Printf("checkout error: %v", err)
+			status = http.StatusInternalServerError
+			errMsg = "internal server error"
+		}
+		writeJSON(w, status, map[string]any{
+			"success":            false,
+			"message":            errMsg,
+			"processing_time_ms": processingTimeMs,
 		})
 		return
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"success":           true,
-		"order_id":          orderID,
-		"message":           "order placed successfully",
-		"processing_time_ms": 0,
+		"success":            true,
+		"order_id":           orderID,
+		"message":            "order placed successfully",
+		"processing_time_ms": processingTimeMs,
 	})
+}
+
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(s) > 0 && indexOf(s, substr) >= 0)
+}
+
+func indexOf(s, substr string) int {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return i
+		}
+	}
+	return -1
 }
 
 func (h *Handler) MetricsLive(w http.ResponseWriter, r *http.Request) {

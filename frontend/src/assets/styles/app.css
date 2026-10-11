@@ -1,0 +1,287 @@
+@import url("https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap") layer(base);
+
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  --font-sans: Outfit, ui-sans-serif, system-ui, sans-serif;
+
+  --breakpoint-2xsm: 375px;
+  --breakpoint-xsm: 425px;
+  --breakpoint-3xl: 2000px;
+
+  /* Title sizes */
+  --text-title-2xl: 72px;
+  --text-title-2xl--line-height: 90px;
+  --text-title-xl: 60px;
+  --text-title-xl--line-height: 72px;
+  --text-title-lg: 48px;
+  --text-title-lg--line-height: 60px;
+  --text-title-md: 36px;
+  --text-title-md--line-height: 44px;
+  --text-title-sm: 30px;
+  --text-title-sm--line-height: 38px;
+  --text-theme-xl: 20px;
+  --text-theme-xl--line-height: 30px;
+  --text-theme-sm: 14px;
+  --text-theme-sm--line-height: 20px;
+  --text-theme-xs: 12px;
+  --text-theme-xs--line-height: 18px;
+
+  /* Brand */
+  --color-brand-25: #f2f7ff;
+  --color-brand-50: #ecf3ff;
+  --color-brand-100: #dde9ff;
+  --color-brand-200: #c2d6ff;
+  --color-brand-300: #9cb9ff;
+  --color-brand-400: #7592ff;
+  --color-brand-500: #465fff;
+  --color-brand-600: #3641f5;
+  --color-brand-700: #2a31d8;
+  --color-brand-800: #252dae;
+  --color-brand-900: #262e89;
+  --color-brand-950: #161950;
+
+  /* Gray scale */
+  --color-gray-25: #fcfcfd;
+  --color-gray-50: #f9fafb;
+  --color-gray-100: #f2f4f7;
+  --color-gray-200: #e4e7ec;
+  --color-gray-300: #d0d5dd;
+  --color-gray-400: #98a2b3;
+  --color-gray-500: #667085;
+  --color-gray-600: #475467;
+  --color-gray-700: #344054;
+  --color-gray-800: #1d2939;
+  --color-gray-900: #101828;
+  --color-gray-950: #0c111d;
+  --color-gray-dark: #1a2231;
+
+  /* Status: success */
+  --color-success-25: #f6fef9;
+  --color-success-50: #ecfdf3;
+  --color-success-100: #d1fadf;
+  --color-success-200: #a6f4c5;
+  --color-success-300: #6ce9a6;
+  --color-success-400: #32d583;
+  --color-success-500: #12b76a;
+  --color-success-600: #039855;
+  --color-success-700: #027a48;
+
+  /* Status: error */
+  --color-error-25: #fffbfa;
+  --color-error-50: #fef3f2;
+  --color-error-100: #fee4e2;
+  --color-error-200: #fecdca;
+  --color-error-300: #fda29b;
+  --color-error-400: #f97066;
+  --color-error-500: #f04438;
+  --color-error-600: #d92d20;
+  --color-error-700: #b42318;
+
+  /* Status: warning */
+  --color-warning-25: #fffcf5;
+  --color-warning-50: #fffaeb;
+  --color-warning-100: #fef0c7;
+  --color-warning-200: #fedf89;
+  --color-warning-300: #fec84b;
+  --color-warning-400: #fdb022;
+  --color-warning-500: #f79009;
+  --color-warning-600: #dc6803;
+  --color-warning-700: #b54708;
+
+  /* Status: info */
+  --color-blue-light-25: #f5fbff;
+  --color-blue-light-50: #f0f9ff;
+  --color-blue-light-100: #e0f2fe;
+  --color-blue-light-200: #b9e6fe;
+  --color-blue-light-500: #0ba5ec;
+  --color-blue-light-600: #0086c9;
+  --color-blue-light-700: #026aa2;
+
+  /* Shadows */
+  --shadow-theme-md: 0px 4px 8px -2px rgba(16, 24, 40, 0.1),
+    0px 2px 4px -2px rgba(16, 24, 40, 0.06);
+  --shadow-theme-lg: 0px 12px 16px -4px rgba(16, 24, 40, 0.08),
+    0px 4px 6px -2px rgba(16, 24, 40, 0.03);
+  --shadow-theme-sm: 0px 1px 3px 0px rgba(16, 24, 40, 0.1),
+    0px 1px 2px 0px rgba(16, 24, 40, 0.06);
+  --shadow-theme-xs: 0px 1px 2px 0px rgba(16, 24, 40, 0.05);
+  --shadow-theme-xl: 0px 20px 24px -4px rgba(16, 24, 40, 0.08),
+    0px 8px 8px -4px rgba(16, 24, 40, 0.03);
+}
+
+/* ===== Theme tokens for runtime customization ===== */
+:root {
+  --tx-sidebar-bg: #ffffff;
+  --tx-sidebar-text: #475467;
+  --tx-sidebar-text-active: #465fff;
+  --tx-sidebar-active-bg: #ecf3ff;
+  --tx-sidebar-border: #e4e7ec;
+
+  --tx-body-bg: #f9fafb;
+  --tx-card-bg: #ffffff;
+  --tx-header-bg: #ffffff;
+  --tx-border: #e4e7ec;
+  --tx-border-subtle: #f2f4f7;
+
+  --tx-text: #344054;
+  --tx-text-heading: #101828;
+  --tx-text-muted: #667085;
+}
+
+:root.dark {
+  --tx-sidebar-bg: #1a2231;
+  --tx-sidebar-text: #98a2b3;
+  --tx-sidebar-text-active: #ffffff;
+  --tx-sidebar-active-bg: rgba(70, 95, 255, 0.15);
+  --tx-sidebar-border: #1f2937;
+
+  --tx-body-bg: #101828;
+  --tx-card-bg: #1a2231;
+  --tx-header-bg: #1a2231;
+  --tx-border: #1f2937;
+  --tx-border-subtle: #1d2939;
+
+  --tx-text: #d0d5dd;
+  --tx-text-heading: #f9fafb;
+  --tx-text-muted: #98a2b3;
+}
+
+html,
+body,
+#app {
+  min-height: 100%;
+  margin: 0;
+  font-family: var(--font-sans);
+}
+
+body {
+  background-color: var(--tx-body-bg);
+  color: var(--tx-text);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Hide scrollbar utility */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #d0d5dd;
+  border-radius: 6px;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: #344054;
+}
+
+/* Focus ring */
+.focus-ring:focus {
+  outline: none;
+  box-shadow: 0px 0px 0px 4px rgba(70, 95, 255, 0.12);
+}
+
+/* Selection */
+::selection {
+  background: var(--color-brand-500);
+  color: #fff;
+}
+
+/* Theme-aware surface utilities (resolve at runtime via --tx-* vars) */
+.surface-card {
+  background-color: var(--tx-card-bg);
+  border-color: var(--tx-border);
+}
+.surface-header {
+  background-color: var(--tx-header-bg);
+  border-color: var(--tx-border);
+}
+.surface-sidebar {
+  background-color: var(--tx-sidebar-bg);
+  border-color: var(--tx-sidebar-border);
+}
+.text-heading {
+  color: var(--tx-text-heading);
+}
+.text-body {
+  color: var(--tx-text);
+}
+.text-muted {
+  color: var(--tx-text-muted);
+}
+.border-themed {
+  border-color: var(--tx-border);
+}
+
+/* Sidebar nav item — uses sidebar-specific text tokens so palettes
+   with dark sidebar (Esmeralda, Violeta, etc.) get readable text */
+.is-sidebar-inactive {
+  color: var(--tx-sidebar-text);
+}
+.is-sidebar-inactive:hover {
+  background-color: var(--tx-sidebar-active-bg);
+  color: var(--tx-sidebar-text-active);
+}
+.is-sidebar-active {
+  background-color: var(--tx-sidebar-active-bg);
+  color: var(--tx-sidebar-text-active);
+}
+.surface-sidebar h3 {
+  color: var(--tx-sidebar-text);
+  opacity: 0.65;
+}
+.surface-sidebar [data-brand-text] {
+  color: var(--tx-sidebar-text-active);
+}
+
+/* Range slider */
+input[type='range'] {
+  accent-color: var(--color-brand-500);
+}
+
+/* Color picker thumb */
+input[type='color'] {
+  -webkit-appearance: none;
+  appearance: none;
+  border: 1px solid var(--tx-border);
+  border-radius: 6px;
+  cursor: pointer;
+  padding: 2px;
+  background: transparent;
+}
+input[type='color']::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+input[type='color']::-webkit-color-swatch {
+  border: none;
+  border-radius: 4px;
+}
+
+
+/* === image-fallback-safety-net ===========================================================
+   Cover/hero images frequently sit BEHIND light or white text. If an image
+   fails to load (offline, blocked, 404), keep a dark backdrop so the overlaid
+   text stays readable instead of vanishing against the page background. Once
+   the real image paints, this backdrop is fully covered — zero visual change.
+   ======================================================================== */
+img.object-cover {
+  background-color: #101828;
+  background-image: linear-gradient(135deg, #1d2939 0%, #101828 100%);
+  background-size: cover;
+  background-position: center;
+}
+/* === end image-fallback-safety-net === */

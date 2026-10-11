@@ -9,83 +9,143 @@ import (
 type Config struct {
 	Server   ServerConfig
 	Database DatabaseConfig
+	Auth     AuthConfig
+	Ollama   OllamaConfig
+	Faults   FaultsConfig
 	Telemetry TelemetryConfig
-	Faults    FaultsConfig
 }
 
 type ServerConfig struct {
 	Host string
-	Port int
+	Port string
+}
+
+func (s ServerConfig) Addr() string {
+	return s.Host + ":" + s.Port
 }
 
 type DatabaseConfig struct {
-	URL string
+	URL             string
+	MaxConns        int
+	MinConns        int
+	MaxConnLifetime time.Duration
+	MaxConnIdleTime time.Duration
+	ConnectTimeout  time.Duration
 }
 
-type TelemetryConfig struct {
-	WindowSize     time.Duration
-	BufferSize     int
-	PersistEnabled bool
+type AuthConfig struct {
+	JWTSecret     string
+	TokenExpiry   time.Duration
+	BCryptCost    int
+}
+
+type OllamaConfig struct {
+	BaseURL          string
+	Model            string
+	Timeout          time.Duration
+	MaxRetries       int
+	Enabled          bool
 }
 
 type FaultsConfig struct {
-	MaxLatencyMs      int
-	MaxFailureRate    float64
-	MaxDurationSeconds int
-	LocalOnly         bool
+	Enabled       bool
+	MaxDuration   time.Duration
+	MaxLatencyMs  int
+	MaxErrorRate  float64
+}
+
+type TelemetryConfig struct {
+	MetricsWindow    time.Duration
+	IncidentCooldown time.Duration
+	SampleRetention  time.Duration
 }
 
 func Load() (*Config, error) {
-	port, _ := strconv.Atoi(getEnv("SERVER_PORT", "8080"))
-	maxLatency, _ := strconv.Atoi(getEnv("FAULT_MAX_LATENCY_MS", "10000"))
-	maxFailureRate, _ := strconv.ParseFloat(getEnv("FAULT_MAX_FAILURE_RATE", "1.0"), 64)
-	maxDuration, _ := strconv.Atoi(getEnv("FAULT_MAX_DURATION_SECONDS", "300"))
-	localOnly := getEnv("FAULT_LOCAL_ONLY", "true") == "true"
-
-	windowSize, _ := time.ParseDuration(getEnv("TELEMETRY_WINDOW_SIZE", "5s"))
-	bufferSize, _ := strconv.Atoi(getEnv("TELEMETRY_BUFFER_SIZE", "120"))
-	persistEnabled := getEnv("TELEMETRY_PERSIST_ENABLED", "true") == "true"
-
-	dbURL := os.Getenv("DATABASE_URL")
-	if dbURL == "" {
-		return nil, ErrMissingDatabaseURL
-	}
-
-	return &Config{
+	cfg := &Config{
 		Server: ServerConfig{
-			Host: getEnv("SERVER_HOST", "localhost"),
-			Port: port,
+			Host: getEnv("SERVER_HOST", "0.0.0.0"),
+			Port: getEnv("SERVER_PORT", "8080"),
 		},
 		Database: DatabaseConfig{
-			URL: dbURL,
+			URL:             getRequiredEnv("DATABASE_URL"),
+			MaxConns:        getEnvInt("DB_MAX_CONNS", 20),
+			MinConns:        getEnvInt("DB_MIN_CONNS", 2),
+			MaxConnLifetime: getEnvDuration("DB_MAX_CONN_LIFETIME", time.Hour),
+			MaxConnIdleTime: getEnvDuration("DB_MAX_CONN_IDLE_TIME", 30*time.Minute),
+			ConnectTimeout:  getEnvDuration("DB_CONNECT_TIMEOUT", 10*time.Second),
 		},
-		Telemetry: TelemetryConfig{
-			WindowSize:     windowSize,
-			BufferSize:     bufferSize,
-			PersistEnabled: persistEnabled,
+		Auth: AuthConfig{
+			JWTSecret:   getRequiredEnv("JWT_SECRET"),
+			TokenExpiry: getEnvDuration("JWT_TOKEN_EXPIRY", 24*time.Hour),
+			BCryptCost:  getEnvInt("BCRYPT_COST", 12),
+		},
+		Ollama: OllamaConfig{
+			BaseURL:    getEnv("OLLAMA_BASE_URL", "http://localhost:11434"),
+			Model:      getEnv("OLLAMA_MODEL", "gemma2:2b"),
+			Timeout:    getEnvDuration("OLLAMA_TIMEOUT", 60*time.Second),
+			MaxRetries: getEnvInt("OLLAMA_MAX_RETRIES", 2),
+			Enabled:    getEnvBool("OLLAMA_ENABLED", true),
 		},
 		Faults: FaultsConfig{
-			MaxLatencyMs:       maxLatency,
-			MaxFailureRate:     maxFailureRate,
-			MaxDurationSeconds: maxDuration,
-			LocalOnly:          localOnly,
+			Enabled:      getEnvBool("FAULTS_ENABLED", false),
+			MaxDuration:  getEnvDuration("FAULTS_MAX_DURATION", 10*time.Minute),
+			MaxLatencyMs: getEnvInt("FAULTS_MAX_LATENCY_MS", 10000),
+			MaxErrorRate: getEnvFloat("FAULTS_MAX_ERROR_RATE", 0.5),
 		},
-	}, nil
+		Telemetry: TelemetryConfig{
+			MetricsWindow:    getEnvDuration("TELEMETRY_WINDOW", 5*time.Minute),
+			IncidentCooldown: getEnvDuration("INCIDENT_COOLDOWN", 2*time.Minute),
+			SampleRetention:  getEnvDuration("SAMPLE_RETENTION", 24*time.Hour),
+		},
+	}
+	return cfg, nil
 }
 
 func getEnv(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
+	if v := os.Getenv(key); v != "" {
+		return v
 	}
 	return defaultValue
 }
 
-var ErrMissingDatabaseURL = &ConfigError{"DATABASE_URL environment variable is required"}
-
-type ConfigError struct {
-	Message string
+func getRequiredEnv(key string) string {
+	v := os.Getenv(key)
+	if v == "" {
+		panic("required environment variable " + key + " is not set")
+	}
+	return v
 }
 
-func (e *ConfigError) Error() string {
-	return e.Message
+func getEnvInt(key string, defaultValue int) int {
+	if v := os.Getenv(key); v != "" {
+		if i, err := strconv.Atoi(v); err == nil {
+			return i
+		}
+	}
+	return defaultValue
+}
+
+func getEnvFloat(key string, defaultValue float64) float64 {
+	if v := os.Getenv(key); v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			return f
+		}
+	}
+	return defaultValue
+}
+
+func getEnvBool(key string, defaultValue bool) bool {
+	if v := os.Getenv(key); v != "" {
+		return v == "true" || v == "1" || v == "yes"
+	}
+	return defaultValue
+}
+
+func getEnvDuration(key string, defaultValue time.Duration) time.Duration {
+	if v := os.Getenv(key); v != "" {
+		if d, err := time.ParseDuration(v); err == nil {
+			return d
+		}
+	}
+	return defaultValue
 }

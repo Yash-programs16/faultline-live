@@ -1,8 +1,9 @@
 /// <reference types="vite/client" />
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
 const DEFAULT_TIMEOUT = 10000;
+const CHECKOUT_TIMEOUT = 15000;
 
 class ApiError extends Error {
   constructor(
@@ -17,10 +18,11 @@ class ApiError extends Error {
 
 async function request<T>(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit & { timeout?: number } = {}
 ): Promise<T> {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT);
+  const timeout = options.timeout ?? DEFAULT_TIMEOUT;
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
 
   try {
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
@@ -66,13 +68,14 @@ async function request<T>(
 }
 
 export const api = {
-  get: <T>(endpoint: string) => request<T>(endpoint, { method: 'GET' }),
-  post: <T>(endpoint: string, body: unknown) =>
+  get: <T>(endpoint: string, timeout?: number) => request<T>(endpoint, { method: 'GET', timeout }),
+  post: <T>(endpoint: string, body: unknown, timeout?: number) =>
     request<T>(endpoint, {
       method: 'POST',
       body: JSON.stringify(body),
+      timeout,
     }),
-  delete: <T>(endpoint: string) => request<T>(endpoint, { method: 'DELETE' }),
+  delete: <T>(endpoint: string, timeout?: number) => request<T>(endpoint, { method: 'DELETE', timeout }),
 };
 
 import type { Product, CartItem, CartValidateResponse, CheckoutResponse, HealthResponse, MetricsResponse, FaultResponse, IncidentsResponse } from '../types';
@@ -89,7 +92,7 @@ export const cartApi = {
 
 export const checkoutApi = {
   checkout: (items: CartItem[], paymentMethod: string) =>
-    api.post<CheckoutResponse>('/api/checkout', { items, payment_method: paymentMethod }),
+    api.post<CheckoutResponse>('/api/checkout', { items, payment_method: paymentMethod }, CHECKOUT_TIMEOUT),
 };
 
 export const healthApi = {

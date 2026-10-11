@@ -11,19 +11,29 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/joho/godotenv"
 
 	"faultline-live/backend/internal/api"
 	"faultline-live/backend/internal/config"
 	"faultline-live/backend/internal/faults"
+	"faultline-live/backend/internal/payment"
 	"faultline-live/backend/internal/store"
 	"faultline-live/backend/internal/telemetry"
 )
 
 func main() {
+	// Load local development environment variables.
+	// Existing process environment variables take precedence.
+	if err := godotenv.Load(".env"); err != nil {
+		log.Printf("No .env file loaded; using process environment: %v", err)
+	}
+
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
 	}
+
+	// Keep the rest of the existing main() unchanged.
 
 	ctx := context.Background()
 
@@ -57,7 +67,9 @@ func main() {
 	)
 	defer faultCtrl.Shutdown()
 
-	handler := api.NewHandler(st, collector, faultCtrl, cfg)
+	paymentSim := payment.NewSimulator(faultCtrl, collector)
+
+	handler := api.NewHandler(st, collector, faultCtrl, paymentSim, cfg)
 
 	router := mux.NewRouter()
 	router.Use(api.TelemetryMiddleware(collector))
